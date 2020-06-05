@@ -3,26 +3,21 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const helmet = require('helmet');
+const validateBearerToken = require('./validateBearerToken')
+const { NODE_ENV } = require('./config');
 
 const app = express();
 const movieData = require('./movieData');
-const API_TOKEN = process.env.API_TOKEN;
 
+const morganOption = (NODE_ENV === 'production') ? 'tiny' : 'common' 
 
-function bearAuthentication(req, res, next) {
-    let token = req.get('Authorization') || ''
-    token = token.split(' ')[1]
-    if (!token || token !== API_TOKEN) {
-        return res.status(401).json({ error: 'Authorization declined' })
-    }
-    next();
-}
 
 app.use(cors());
 app.use(helmet());
-app.use(morgan('common'));
+app.use(morgan(morganOption));
+app.use(validateBearerToken)
 
-app.get('/movie', bearAuthentication, (req, res) => {
+app.get('/movie', (req, res) => {
     const { genre, country, avg_vote } = req.query;
     let responseArray = movieData;
     if (genre) {
@@ -43,10 +38,20 @@ app.get('/movie', bearAuthentication, (req, res) => {
     res.json(responseArray);
 });
 
-app.listen(9000, () => {
-    console.log('Server on 9000');
-});
+function errorHandler(error, req, res, next) {
+    if (NODE_ENV === 'production') {
+        response = { message: 'Internal server error occured.' }
+    } else {
+        console.log(error);
+        response = { error, message: error.message }
+    }
 
+    res.status(500).json(response);
+}
+
+app.use(errorHandler);
+
+module.exports = app; 
 
 
 
